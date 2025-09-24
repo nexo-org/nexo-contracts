@@ -86,6 +86,16 @@ module credit_protocol::credit_manager {
     }
 
     #[event]
+    struct DirectPaymentEvent has drop, store {
+        borrower: address,
+        recipient: address,
+        amount: u64,
+        total_borrowed: u64,
+        due_date: u64,
+        timestamp: u64,
+    }
+
+    #[event]
     struct RepaidEvent has drop, store {
         borrower: address,
         principal_amount: u64,
@@ -278,6 +288,62 @@ module credit_protocol::credit_manager {
 
         event::emit(BorrowedEvent {
             borrower: borrower_addr,
+            amount,
+            total_borrowed: credit_line.borrowed_amount,
+            due_date: credit_line.repayment_due_date,
+            timestamp: timestamp::now_seconds(),
+        });
+    }
+
+    /// Borrow funds and pay directly to recipient
+    public entry fun borrow_and_pay(
+        borrower: &signer,
+        manager_addr: address,
+        recipient: address,
+        amount: u64,
+    ) acquires CreditManager {
+        let borrower_addr = signer::address_of(borrower);
+        let manager = borrow_global_mut<CreditManager>(manager_addr);
+
+        assert!(!manager.is_paused, error::invalid_state(E_NOT_AUTHORIZED));
+        assert!(amount > 0, error::invalid_argument(E_INVALID_AMOUNT));
+        assert!(recipient != borrower_addr, error::invalid_argument(E_INVALID_ADDRESS));
+        assert!(
+            table::contains(&manager.credit_lines, borrower_addr),
+            error::not_found(E_CREDIT_LINE_NOT_ACTIVE)
+        );
+
+        // Update interest before borrowing
+        update_interest_internal(manager, borrower_addr);
+
+        let credit_line = table::borrow_mut(&mut manager.credit_lines, borrower_addr);
+        assert!(credit_line.is_active, error::invalid_state(E_CREDIT_LINE_NOT_ACTIVE));
+
+        let total_debt = credit_line.borrowed_amount + credit_line.interest_accrued;
+        assert!(
+            total_debt + amount <= credit_line.credit_limit,
+            error::invalid_state(E_EXCEEDS_CREDIT_LIMIT)
+        );
+
+        // Get funds from lending pool
+        let borrowed_coins = lending_pool::borrow_for_payment(
+            borrower,
+            manager.lending_pool_addr,
+            borrower_addr,
+            amount
+        );
+
+        // Transfer funds directly to recipient
+        coin::deposit(recipient, borrowed_coins);
+
+        // Update credit line
+        credit_line.borrowed_amount = credit_line.borrowed_amount + amount;
+        credit_line.last_borrowed_timestamp = timestamp::now_seconds();
+        credit_line.repayment_due_date = timestamp::now_seconds() + GRACE_PERIOD + 2592000; // 30 days
+
+        event::emit(DirectPaymentEvent {
+            borrower: borrower_addr,
+            recipient,
             amount,
             total_borrowed: credit_line.borrowed_amount,
             due_date: credit_line.repayment_due_date,

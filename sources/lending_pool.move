@@ -217,6 +217,36 @@ module credit_protocol::lending_pool {
         });
     }
 
+    /// Borrow funds for direct payment to recipient (returns coins instead of depositing)
+    public fun borrow_for_payment(
+        credit_manager: &signer,
+        pool_addr: address,
+        borrower: address,
+        amount: u64,
+    ): Coin<AptosCoin> acquires LendingPool {
+        let manager_addr = signer::address_of(credit_manager);
+        let pool = borrow_global_mut<LendingPool>(pool_addr);
+
+        assert!(pool.credit_manager == manager_addr, error::permission_denied(E_NOT_AUTHORIZED));
+
+        // Check available liquidity
+        let available_liquidity = coin::value(&pool.usdc_reserve) - pool.protocol_fees_collected;
+        assert!(available_liquidity >= amount, error::invalid_state(E_INSUFFICIENT_LIQUIDITY));
+
+        pool.total_borrowed = pool.total_borrowed + amount;
+
+        // Extract and return coins (caller will handle the transfer)
+        let borrow_coins = coin::extract(&mut pool.usdc_reserve, amount);
+
+        event::emit(BorrowEvent {
+            borrower,
+            amount,
+            timestamp: timestamp::now_seconds(),
+        });
+
+        borrow_coins
+    }
+
     /// Repay borrowed funds (only by credit manager)
     public entry fun repay(
         credit_manager: &signer,
