@@ -1,0 +1,17 @@
+[package]
+name = "credit_protocol"
+version = "1.0.0"
+authors = ["Credit Protocol Team"]
+
+[addresses]
+credit_protocol = "_"
+
+[dev-addresses]
+credit_protocol = "0x7dab2b468867d46e5a1968ffa045d1308b010e6e1eece081172c72c3f35c4f5e"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "mainnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]
