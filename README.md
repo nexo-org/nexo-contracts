@@ -1,4 +1,4 @@
-# Credit Protocol - Move Migration
+# Credit Protocol - Move Migration CTRL + MOVE HACKATHON
 
 This directory contains the Credit Protocol smart contracts Move (Aptos).
 
