@@ -1,6 +1,6 @@
 # Credit Protocol - Move Migration
 
-This directory contains the complete migration of the Credit Protocol smart contracts from Solidity (Ethereum) to Move (Aptos).
+This directory contains the Credit Protocol smart contracts Move (Aptos).
 
 ## Architecture
 
